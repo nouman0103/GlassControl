@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script type="text/javascript" src="/eel.js"></script>
+    <title>GlassControl</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* For Webkit browsers (Chrome, Safari) */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            transition: all 0.2s ease;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        /* For Firefox */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) rgba(255, 255, 255, 0.05);
+        }
+
+        /* Smooth scrolling */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* For elements that need custom scrolling */
+        .custom-scroll {
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
+            -ms-overflow-style: -ms-autohiding-scrollbar;
+        }
+
+        /* Optional: When you want the scrollbar to only appear on hover */
+        .scroll-on-hover {
+            overflow: auto;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .scroll-on-hover:hover {
+            opacity: 1;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #121212;
+            color: white;
+            gap: 2rem;
+            padding: 2rem;
+        }
+
+        .earbuds {
+            display: flex;
+            justify-content: space-around;
+        }
+
+        .earbud {
+            text-align: center;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .earbud img {
+            width: 200px;
+            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.3s ease, opacity 0.3s ease, pointer-events 0.3s ease;
+        }
+
+        .earbud:hover img {
+            transform: scale(1.08) rotate(5deg);
+        }
+
+        .battery {
+            margin-top: 20px;
+            font-size: 1.2em;
+            font-weight: 500;
+            color: #ffffff;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            transform: translateY(0);
+            transition: transform 0.3s ease, background-color 0.3s ease, opacity 0.3s ease;
+        }
+
+        .earbud:hover .battery {
+            transform: translateY(-5px);
+        }
+
+        .controls-section {
+            background: rgba(37, 37, 37, 0.5);
+            padding: 2rem;
+            border-radius: 55px;
+            width: 100%;
+            max-width: 600px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .controls-section:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .anc_controls {
+            margin-bottom: 2rem;
+        }
+
+        .control_parent {
+            display: flex;
+            justify-content: space-between;
+            background-color: #161616;
+            padding: 0.25rem;
+            border-radius: 100px;
+            position: relative;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .slider-background {
+            position: absolute;
+            width: 33.33%;
+            height: calc(100% - 0.75rem);
+            background: #fff;
+            border-radius: 100px;
+            top: 0.37rem;
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.15)
+        }
+
+        .control {
+            position: relative;
+            z-index: 1;
+            background: none;
+            color: #666;
+            border: none;
+            border-radius: 100px;
+            font-size: 0.9em;
+            cursor: pointer;
+            width: 33.33%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            padding: 1rem;
+        }
+
+        .control.active {
+            color: black;
+        }
+
+
+        .control img {
+            width: 20px;
+            height: 20px;
+            opacity: 0.5;
+            transition: all 0.3s ease;
+        }
+
+        .control.active img {
+            opacity: 1;
+            transform: scale(1.1);
+            filter: none !important;
+        }
+
+        .equalizer-section {
+            display: none;
+            transition: all 0.3s ease;
+        }
+        .visible {
+            display: block;
+        }
+
+        .equalizer-toggle {
+            width: 100%;
+            padding: 1rem;
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 1rem 0;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+
+        .equalizer-toggle:hover {
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .equalizer-toggle svg {
+            transition: transform 0.3s ease;
+        }
+
+        .equalizer-toggle.active svg {
+            transform: rotate(180deg);
+        }
+
+        .custom-slider-container {
+            margin: 0.5rem 0;
+            position: relative;
+            padding: 1rem 0;
+        }
+
+        .custom-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: #ffffff99;
+        }
+
+        .custom-value {
+            font-weight: 500;
+            color: white;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 20px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            outline: none;
+        }
+
+        .custom-dots-container {
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 0 10px;
+            box-sizing: border-box;
+            margin-top: 13px;
+        }
+
+        .custom-dot {
+            width: 6px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transition: background-color 0.2s ease;
+        }
+
+        .custom-dot.active {
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            margin-top: -8px;
+            transform: scale(1);
+            transition: transform 0.2s ease, left 0.2s ease;
+
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            background: #fff;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:active {
+            transform: scale(0.95);
+            background: #eee;
+        }
+
+        .custom-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+            text-align: center;
+        }
+
+        
+        .equalizer-value {
+            position: absolute;
+            color: white;
+            font-size: 0.8em;
+            font-family: monospace;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .preset-button {
+            background: #161616;
+            border: none;
+            color: #666;
+            padding: 1rem;
+            border-radius: 100px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .preset-button:hover {
+            background: #2a2a2a;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .preset-button.active {
+            background: #fff;
+            color: #000;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.15);
+        }
+
+        .custom-button {
+            grid-column: 1 / -1;
+            background: #2a2a2a;
+        }
+
+        .custom-button.active {
+            background: #fff;
+            color: #000;
+        }
+
+        @media (max-width: 768px) {
+            .earbuds {
+                gap: 40px;
+            }
+
+            .earbud img {
+                width: 150px;
+            }
+
+            .controls-section {
+                padding: 1.5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .earbuds {
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .preset-buttons {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    <script>
+        eel.expose(setBattery)
+        function setBattery(batteryStatus){
+            //batteryStatys: {'left': {'batteryLevel': 100, 'isCharging': False}, 'right': {'batteryLevel': 1, 'isCharging': False}, 'case': 'DISCONNECTED'}
+            if (batteryStatus['left'] != 'DISCONNECTED') {
+                document.getElementById('left-earbud-battery').innerHTML = `&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${batteryStatus['left']['batteryLevel']}%`;
+                document.getElementById('left-earbud-battery').style.opacity = '1';
+                document.getElementById('left-earbud').style.filter = 'none';
+                document.getElementById('left-earbud').style.opacity = '1';
+                document.getElementById('left-earbud').style.pointerEvents = 'auto';
+            } else {
+                document.getElementById('left-earbud-battery').style.opacity = '0';
+                document.getElementById('left-earbud').style.filter = 'grayscale(1)';
+                document.getElementById('left-earbud').style.opacity = '0.5';
+                document.getElementById('left-earbud').style.pointerEvents = 'none';
+
+            }
+            if (batteryStatus['right'] != 'DISCONNECTED') {
+                document.getElementById('right-earbud-battery').innerHTML = `${batteryStatus['right']['batteryLevel']}%&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`;
+                document.getElementById('right-earbud-battery').style.opacity = '1';
+                document.getElementById('right-earbud').style.filter = 'none';
+                document.getElementById('right-earbud').style.opacity = '1';
+                document.getElementById('right-earbud').style.pointerEvents = 'auto';
+            } else {
+                document.getElementById('right-earbud-battery').style.opacity = '0';
+                document.getElementById('right-earbud').style.filter = 'grayscale(1)';
+                document.getElementById('right-earbud').style.opacity = '0.5';
+                document.getElementById('right-earbud').style.pointerEvents = 'none';
+            }
+        }
+        
+        // on page load, call setBattery({ "left": "DISCONNECTED", "right": "DISCONNECTED", "case": "DISCONNECTED" });
+        document.addEventListener('DOMContentLoaded', function() {
+            setBattery({ "left": "DISCONNECTED", "right": "DISCONNECTED", "case": "DISCONNECTED" });
+        });
+    </script>
+</head>
+
+<body>
+    <div class="earbuds">
+        <div class="earbud">
+            <img src="ear_corsola_black_left.png" alt="Left Earbud" id="left-earbud">
+            <div class="battery" id="left-earbud-battery">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;L: 50%</div>
+        </div>
+        <div class="earbud">
+            <img src="ear_corsola_black_right.png" alt="Right Earbud" id="right-earbud">
+            <div class="battery" id="right-earbud-battery">R: 50%&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</div>
+        </div>
+    </div>
+
+    <div class="controls-section">
+        <div class="anc_controls">
+            <div class="control_parent">
+                <div class="slider-background"></div>
+                <button class="control active" onclick="setANCMode(0)">
+                    <img src="anc_on_icon.svg" alt="ANC On" style="filter: invert(1);">
+                    <span>ANC On</span>
+                </button>
+                <button class="control" onclick="setANCMode(1)">
+                    <img src="transparent.png" alt="Transparency" 
+                         width="24" 
+                         height="24" 
+                         style="object-fit: contain; aspect-ratio: 1/1; filter: invert(1);"
+                    >
+                    <span>Transparency</span>
+                </button>
+                <button class="control" onclick="setANCMode(2)">
+                    <img src="anc_off_icon.svg" alt="ANC Off" style="filter: invert(1);">
+                    <span>ANC Off</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="preset-buttons">
+            <button class="preset-button active" onclick="setPreset('balanced')">Balanced</button>
+            <button class="preset-button" onclick="setPreset('bass')">More Bass</button>
+            <button class="preset-button" onclick="setPreset('treble')">More Treble</button>
+            <button class="preset-button" onclick="setPreset('voice')">Voice</button>
+            <button class="preset-button custom-button" onclick="setPreset('custom')">Custom</button>
+        </div>
+        <div class="equalizer-section">
+            <div class="eq-container">
+                <div class="custom-slider-container">
+                    <div class="custom-label">
+                        <span>Bass</span>
+                        <span class="custom-value" id="custom-bassValue">0</span>
+                    </div>
+                    <input type="range" min="-6" max="6" value="0" step="1" id="custom-bass">
+                    <div class="custom-dots-container" id="custom-bassDots"></div>
+                </div>
+
+                <div class="custom-slider-container">
+                    <div class="custom-label">
+                        <span>Mid</span>
+                        <span class="custom-value" id="custom-midValue">0</span>
+                    </div>
+                    <input type="range" min="-6" max="6" value="0" step="1" id="custom-mid">
+                    <div class="custom-dots-container" id="custom-midDots"></div>
+                </div>
+
+                <div class="custom-slider-container">
+                    <div class="custom-label">
+                        <span>Treble</span>
+                        <span class="custom-value" id="custom-trebleValue">0</span>
+                    </div>
+                    <input type="range" min="-6" max="6" value="0" step="1" id="custom-treble">
+                    <div class="custom-dots-container" id="custom-trebleDots"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script>
+        const sliders = ['bass', 'mid', 'treble'];
+        
+        // Create dots for each slider
+        function createDots(containerId) {
+            const container = document.getElementById(containerId);
+            for (let i = -6; i <= 6; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'custom-dot';
+                dot.setAttribute('data-value', i);
+                container.appendChild(dot);
+            }
+        }
+
+        // Update dots based on slider value
+        function updateDots(sliderId, value) {
+            const dots = document.querySelectorAll(`#${sliderId}Dots .custom-dot`);
+            dots.forEach(dot => {
+                const dotValue = parseInt(dot.getAttribute('data-value'));
+                if ((value >= 0 && dotValue <= value && dotValue >= 0) || 
+                    (value <= 0 && dotValue >= value && dotValue <= 0) ||
+                    dotValue === 0) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            });
+        }
+
+        sliders.forEach(id => {
+            createDots(`custom-${id}Dots`);
+            const slider = document.getElementById(`custom-${id}`);
+            const valueDisplay = document.getElementById(`custom-${id}Value`);
+            
+            // Initialize dots
+            updateDots(`custom-${id}`, 0);
+            
+            slider.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                valueDisplay.textContent = `${value} dB`;
+                updateDots(`custom-${id}`, value);
+                
+                // Add subtle spring animation to value display
+                valueDisplay.style.transform = 'scale(1.1)';
+                setTimeout(() => {
+                    valueDisplay.style.transform = 'scale(1)';
+                }, 150);
+            });
+
+            // Double click to reset to 0
+            slider.addEventListener('dblclick', () => {
+                slider.value = 0;
+                valueDisplay.textContent = '0 dB';
+                updateDots(`custom-${id}`, 0);
+                
+                // Add reset animation
+                slider.style.transition = 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                setTimeout(() => {
+                    slider.style.transition = '';
+                }, 300);
+            });
+        });
+    </script>
+
+    <script>
+        const eqParams = [
+            { name: 'BASS', angle: 210, value: 0 },
+            { name: 'MID', angle: 330, value: 0 },
+            { name: 'TREBLE', angle: 90, value: 0 }
+        ];
+
+
+
+        function setPreset(preset) {
+            const buttons = document.querySelectorAll('.preset-button');
+            buttons.forEach(button => {
+                button.classList.toggle('active', button.textContent.toLowerCase().includes(preset));
+            });
+            if (preset === 'custom') {
+                showEQ();
+            } else {
+                hideEQ();
+                //updateEQ(values);
+            }
+            let values;
+            switch (preset) {
+                case 'balanced':
+                    values = [0, 0, 0];
+                    break;
+                case 'bass':
+                    values = [6, 0, -2];
+                    break;
+                case 'treble':
+                    values = [-2, 0, 6];
+                    break;
+                case 'voice':
+                    values = [-3, 3, -1];
+                    break;
+                default:
+                    return;
+            }
+            
+        }
+
+        function setANCMode(mode) {
+            const slider = document.querySelector('.slider-background');
+            const controls = document.querySelectorAll('.control');
+
+            slider.style.transform = `translateX(${mode * 100}%)`;
+            controls.forEach((control, index) => {
+                control.classList.toggle('active', index === mode);
+            });
+            eel.setANC(mode);
+        }
+
+        eel.expose(updateANC)
+        function updateANC(mode) {
+            const slider = document.querySelector('.slider-background');
+            const controls = document.querySelectorAll('.control');
+            slider.style.transform = `translateX(${mode * 100}%)`;
+            controls.forEach((control, index) => {
+                control.classList.toggle('active', index === mode);
+            });
+        }
+
+        function showEQ() {
+            const section = document.querySelector('.equalizer-section');
+            section.classList.add('visible');
+        }
+        function hideEQ() {
+            const section = document.querySelector('.equalizer-section');
+            section.classList.remove('visible');
+        }
+
+        // Simulate battery updates
+        function updateBatteries() {
+            const batteries = document.querySelectorAll('.battery');
+            batteries.forEach(battery => {
+                const currentValue = parseInt(battery.textContent.split(':')[1]);
+                if (currentValue > 0) {
+                    battery.textContent = `${battery.textContent.split(':')[0]}: ${currentValue - 1}%`;
+                }
+            });
+        }
+
+        // Optional: Simulate battery drain
+        // setInterval(updateBatteries, 60000); // Update every minute
+    </script>
+    <script type="text/javascript">
+        // Use the electron object exposed via preload.js
+        eel.expose(toggleVisibility);
+        function toggleVisibility(action) {
+            // Call the exposed method to send the action to Electron's main process
+            window.electron.toggleVisibility(action);
+        }
+    </script>
+</body>
+
+</html>

@@ -24,8 +24,10 @@ from eel import expose
 from PyQt5.QtCore import pyqtSignal, QObject
 import subprocess
 import os
+from dotenv import load_dotenv
 import psutil
 
+load_dotenv()
 
 # Add signal class
 class SignalEmitter(QObject):
@@ -53,6 +55,9 @@ def toggle_window(action):
 class EarX:
     def __init__(self, overlay):
         self.TARGET_MAC = os.getenv("EARBUD_MAC_ADDRESS")
+        if not self.TARGET_MAC:
+            raise ValueError("EARBUD_MAC_ADDRESS environment variable is not set. Please check your .env file.")
+        print("Mac", self.TARGET_MAC)
         self.TARGET_PORT = 15
         self.bt_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
         self.operation_id = 0
@@ -660,6 +665,31 @@ class TransparentOverlay(QMainWindow):
         self.animation_up.setStartValue(QPoint(x_pos, start_y))
         self.animation_up.setEndValue(QPoint(x_pos, mid_y))
 
+        # Replace the wait animation with breathing sequence
+        self.breathing_group = QSequentialAnimationGroup()
+        
+        # Create subtle up motion
+        self.breathe_up = QPropertyAnimation(self, b"pos")
+        self.breathe_up.setDuration(1750)  # Half of total time
+        self.breathe_up.setStartValue(QPoint(x_pos, mid_y))
+        self.breathe_up.setEndValue(QPoint(x_pos, mid_y + 10))  # Move up slightly
+        self.breathe_up.setEasingCurve(QEasingCurve.InOutSine)
+        
+        # Create subtle down motion
+        self.breathe_down = QPropertyAnimation(self, b"pos")
+        self.breathe_down.setDuration(1750)  # Half of total time
+        self.breathe_down.setStartValue(QPoint(x_pos, mid_y + 10))
+        self.breathe_down.setEndValue(QPoint(x_pos, mid_y))
+        self.breathe_down.setEasingCurve(QEasingCurve.InOutSine)
+        
+        # Add to sequence
+        self.breathing_group.addAnimation(self.breathe_up)
+        self.breathing_group.addAnimation(self.breathe_down)
+        
+        # Replace original wait animation
+        self.animation_wait = self.breathing_group
+
+
         # Quick fade out
         self.animation_down = QPropertyAnimation(self, b"pos")
         self.animation_down.setDuration(1000)
@@ -670,6 +700,7 @@ class TransparentOverlay(QMainWindow):
         # Sequential group
         self.animation_group = QSequentialAnimationGroup()
         self.animation_group.addAnimation(self.animation_up)
+        self.animation_group.addAnimation(self.animation_wait)
         self.animation_group.addAnimation(self.animation_down)
 
     def setup_buds_animations(self):
@@ -704,6 +735,13 @@ class TransparentOverlay(QMainWindow):
         self.right_scale_up.setStartValue(0.4)
         self.right_scale_up.setEndValue(self.max_scale)
         self.right_scale_up.setEasingCurve(QEasingCurve.InOutBack)
+
+        self.wait_animation = QPropertyAnimation(self.right_label, b"scale")  # opacity is dummy property
+        self.wait_animation.setDuration(3500)  # 1 second wait
+        self.wait_animation.setStartValue(self.max_scale)
+        self.wait_animation.setEndValue(self.max_scale)
+
+
 
 
         # Create additional animations for buds going down
@@ -751,6 +789,7 @@ class TransparentOverlay(QMainWindow):
         # Sequential group for looping the scale up, scale down, and going down
         self.buds_animation_group = QSequentialAnimationGroup()
         self.buds_animation_group.addAnimation(self.buds_group)
+        self.buds_animation_group.addAnimation(self.wait_animation)
         self.buds_animation_group.addAnimation(self.buds_down_group)
 
         # Sync buds going down animations with main fade out
@@ -802,6 +841,8 @@ def main():
         glassX.bt_socket.close()
         glassX.terminate = True
         app.quit()
+        sys.exit()
+        
     
     # Handle system signals
     signal.signal(signal.SIGINT, lambda s, f: cleanup())

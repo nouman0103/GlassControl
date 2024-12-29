@@ -9,7 +9,7 @@ import subprocess
 import sys
 import threading
 import time
-from tkinter import messagebox
+import pickle
 
 # Third-party imports
 import bluetooth
@@ -91,21 +91,18 @@ class EarX:
         # if false, connect to earbuds only when Windows is connected (Uses more resources)
         self.quick_connect = True
         self.manual_connect = False
-
-        self.readerThread = threading.Thread(target=self.reader)
-        self.readerThread.start()
-        self.pingerThread = threading.Thread(target=self.pinger)
-        self.pingerThread.start()
-        self.connectorThread = threading.Thread(target=self.auto_connect)
-        self.connectorThread.start()
         self.batteryStatus = { "left": "DISCONNECTED", "right": "DISCONNECTED", "case": "DISCONNECTED" }
         self.overlay = overlay
         self.first_animation_loaded = False
         self.first_in_ear = False
         self.pinging_eel = False
 
+        threading.Thread(target=self.pinger).start()
+        threading.Thread(target=self.reader).start()
+
     
-        
+    def trigger_connect(self):
+        threading.Thread(target=self.auto_connect).start()
 
     def crc16(self, buffer):
         """Calculate CRC16 for the command packet"""
@@ -206,7 +203,7 @@ class EarX:
 
     def on_disconnect(self):
         """Handle disconnection"""
-        print("Disconnected from earbuds. Reconnecting...")
+        print("Disconnected from earbuds.")
         self.connected = False
         self.batteryStatus = { "left": "DISCONNECTED", "right": "DISCONNECTED", "case": "DISCONNECTED" }
         self.overlay.set_battery_level(self.batteryStatus)
@@ -220,7 +217,8 @@ class EarX:
         except OSError:
             pass
         self.bt_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
-        threading.Thread(target=self.auto_connect).start()
+        if not self.manual_connect:
+            threading.Thread(target=self.auto_connect).start()
 
     def on_connect(self):
         """Handle connection"""
@@ -1047,6 +1045,26 @@ def main():
     overlay = TransparentOverlay()
     glassX:EarX = EarX(overlay)
 
+    # load the mode from pickle
+    mode = None
+    try:
+        with open("mode.pickle", "rb") as f:
+            mode = pickle.load(f)
+            if mode == 0:
+                glassX.manual_connect = True
+                glassX.quick_connect = True
+            elif mode == 1:
+                glassX.manual_connect = False
+                glassX.quick_connect = False
+            elif mode == 2:
+                glassX.manual_connect = False
+                glassX.quick_connect = True
+    except Exception as e:
+        print(f"Error loading mode: {e}")
+        
+    if mode != 0:
+        threading.Thread(target=glassX.auto_connect).start()
+
     eel.expose(glassX.setANC)
     eel.expose(glassX.setEQ)
     eel.expose(glassX.setCustomEQ_BT)
@@ -1116,15 +1134,17 @@ def main():
     # Add mode options
     instant_mode = connection_menu.addAction("Instant")
     instant_mode.setCheckable(True)
-    instant_mode.setChecked(True)
+    instant_mode.setChecked(True if mode == 2 else False)
     mode_group.addAction(instant_mode)
     
     restricted_mode = connection_menu.addAction("Restricted")
     restricted_mode.setCheckable(True)
+    restricted_mode.setChecked(True if mode == 1 else False)
     mode_group.addAction(restricted_mode)
     
     manual_mode = connection_menu.addAction("Manual")
     manual_mode.setCheckable(True)
+    manual_mode.setChecked(True if mode == 0 else False)
     mode_group.addAction(manual_mode)
     
     connection_menu.addSeparator()
@@ -1149,12 +1169,13 @@ def main():
     
     # Manual connect button (hidden by default)
     connect_action = menu.addAction("Connect")
-    connect_action.setVisible(False)
+    connect_action.setVisible(True if mode == 0 else False)
     connect_action.triggered.connect(lambda: threading.Thread(target=glassX.auto_connect).start())  # You'll need to implement this function
     
     # Mode change handler
     def on_mode_change():
         connect_action.setVisible(manual_mode.isChecked())
+        mode = 0
         if manual_mode.isChecked():
             glassX.manual_connect = True
             glassX.quick_connect = True
@@ -1162,10 +1183,20 @@ def main():
             glassX.quick_connect = False
             glassX.manual_connect = False
             threading.Thread(target=glassX.auto_connect).start()
+            mode = 1
         elif instant_mode.isChecked():
             glassX.manual_connect = False
             glassX.quick_connect = True
             threading.Thread(target=glassX.auto_connect).start()
+            mode = 2
+
+        # save this mode for next time, pickle
+        try:
+            with open("mode.pickle", "wb") as f:
+                pickle.dump(mode, f)
+        except Exception as e:
+            print(f"Error saving mode: {e}")
+
 
     
     instant_mode.triggered.connect(on_mode_change)

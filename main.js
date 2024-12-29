@@ -26,6 +26,7 @@ app.on('ready', () => {
                 windowVisible = false;
             } else {
                 mainWindow.show();
+                mainWindow.focus();
                 windowVisible = true;
             }
         } catch (error) {

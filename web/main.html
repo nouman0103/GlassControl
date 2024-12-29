@@ -708,12 +708,17 @@
         // Optional: Simulate battery drain
         // setInterval(updateBatteries, 60000); // Update every minute
     </script>
-    <script type="text/javascript">
+    <script>
         // Use the electron object exposed via preload.js
         eel.expose(toggleVisibility);
-        function toggleVisibility(action) {
+        function toggleVisibility() {
             // Call the exposed method to send the action to Electron's main process
-            window.electron.toggleVisibility(action);
+            window.electron.toggleVisibility();
+        }
+
+        eel.expose(ping)
+        function ping() {
+            return 'pong';
         }
 
         eel.expose(exitApp);

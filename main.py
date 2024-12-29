@@ -93,6 +93,7 @@ class EarX:
         self.overlay = overlay
         self.first_animation_loaded = False
         self.first_in_ear = False
+        self.pinging_eel = False
 
     def crc16(self, buffer):
         """Calculate CRC16 for the command packet"""
@@ -112,6 +113,7 @@ class EarX:
         self.connecting = True
         while not self.terminate:
             try:
+                threading.Thread(target=self.eelPing).start()
                 self.bt_socket.connect((self.TARGET_MAC, self.TARGET_PORT))
                 self.on_connect()
                 break
@@ -150,6 +152,7 @@ class EarX:
     def on_connect(self):
         """Handle connection"""
         print("Connected to earbuds")
+        threading.Thread(target=self.eelPing).start()
         self.connected = True
         self.get_battery()
         threading.Timer(1, self.getANC).start()
@@ -329,12 +332,52 @@ class EarX:
             if self.connected:
                 try:
                     self.get_battery()
+                    threading.Thread(target=self.eelPing).start()
                 except OSError:
                     self.on_disconnect()
             time.sleep(60)
 
-
-
+    def eelPing(self):
+        if self.pinging_eel:
+            return
+        time.sleep(1)
+        self.pinging_eel = True
+        MAX_RETRIES = 2
+        TIMEOUT = 2  # seconds
+        
+        for attempt in range(MAX_RETRIES):
+            try:
+                print(f"Sending ping to Eel (attempt {attempt + 1}/{MAX_RETRIES})")
+                
+                # Create event for timeout handling
+                done = threading.Event()
+                result = [None]
+                
+                def ping_with_timeout():
+                    try:
+                        result[0] = eel.ping()()
+                        done.set()
+                    except Exception:
+                        done.set()
+                
+                # Start ping in thread
+                threading.Thread(target=ping_with_timeout).start()
+                
+                # Wait with timeout
+                if done.wait(timeout=TIMEOUT):
+                    if result[0] == "pong":
+                        print("Ping successful")
+                        self.pinging_eel = False
+                        return True
+                
+                print("Ping timed out or failed, restarting Eel...")
+                threading.Thread(target=start_eel).start()
+                time.sleep(2)  # Wait for restart
+                
+            except Exception as e:
+                print(f"Error during ping attempt {attempt + 1}: {e}")
+        self.pinging_eel = False
+        return False
     def reader(self):
         
         while not self.terminate:
@@ -904,15 +947,21 @@ class TransparentOverlay(QMainWindow):
 
 
 def start_eel():
-    print("Starting Eel")
-    eel.init("web")
-    eel.browsers.set_path('electron', r'.\electron-v31.0.0-alpha.2-win32-x64\electron.exe')
-    eel.start("main.html", mode="electron")
+    try:
+        print("Starting Eel")
+        eel.init("web")
+        eel.browsers.set_path('electron', r'.\electron-v31.0.0-alpha.2-win32-x64\electron.exe')
+        threading.Thread(target = lambda :eel.start("main.html", mode="electron")).start()
+    except Exception as e:
+        print(f"Error starting Eel: {e}")
 
 def show_eel_window():
     print("Showing Eel window")
-    eel.toggleVisibility("show")
-    print("command sent")
+    try:
+        eel.toggleVisibility()
+        print("Command sent")
+    except Exception as e:
+        print(f"Error showing window: {e}")
 
 def main():
     app = QApplication(sys.argv)

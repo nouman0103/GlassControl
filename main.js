@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, powerMonitor} = require('electron');
 const path = require('path');
 let mainWindow;
 
@@ -17,13 +17,22 @@ app.on('ready', () => {
     mainWindow.setMenuBarVisibility(false)
     //mainWindow.loadFile('web/main.html'); // Adjust path if necessary
     mainWindow.loadURL('http://localhost:8000/main.html');
-
+    windowVisible = false;
     // Listen for toggle events from Python
-    ipcMain.on('toggle-visibility', (_, action) => {
-        if (action === 'hide') {
-            mainWindow.hide();
-        } else if (action === 'show') {
-            mainWindow.show();
+    ipcMain.on('toggle-visibility', () => {
+        if (!mainWindow) return;
+        
+        try {
+            if (windowVisible) {
+                mainWindow.hide();
+                windowVisible = false;
+            } else {
+                mainWindow.show();
+                mainWindow.focus();
+                windowVisible = true;
+            }
+        } catch (error) {
+            console.error('Error toggling window visibility:', error);
         }
     });
 
@@ -34,14 +43,25 @@ app.on('ready', () => {
     ipcMain.on("minimize", () => {
         mainWindow.minimize();
     });
+
+
     
 
     mainWindow.on('close', (event) => {
-      event.preventDefault();  // Prevent the default close behavior
-      mainWindow.hide();  // Hide the window
-  });
+        event.preventDefault();  // Prevent the default close behavior
+        mainWindow.hide();  // Hide the window
+    });
 
     mainWindow.setTitle("GlassControl");
+    windowDestroyed = false;
+    // Power monitor events
+    powerMonitor.on('suspend', () => {
+        if (mainWindow) {
+            mainWindow.destroy();
+            windowDestroyed = true;
+        }
+    });
+
 });
 
 app.on('window-all-closed', () => {

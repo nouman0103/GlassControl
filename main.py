@@ -9,6 +9,7 @@ import subprocess
 import sys
 import threading
 import time
+from tkinter import messagebox
 
 # Third-party imports
 import bluetooth
@@ -46,7 +47,9 @@ from PyQt5.QtWidgets import (
     QSizePolicy,
     QSystemTrayIcon,
     QVBoxLayout,
-    QWidget
+    QWidget,
+    QActionGroup,
+    QMessageBox
 )
 
 # Expose decorator from eel
@@ -87,6 +90,7 @@ class EarX:
         # if true, connect to earbuds directly without checking Windows connection
         # if false, connect to earbuds only when Windows is connected (Uses more resources)
         self.quick_connect = True
+        self.manual_connect = False
 
         self.readerThread = threading.Thread(target=self.reader)
         self.readerThread.start()
@@ -173,7 +177,7 @@ class EarX:
         
         while not self.terminate:
             # Quick check for Windows connection
-            if not self.quick_connect and not self.is_device_connected_to_windows(self.TARGET_MAC):
+            if not self.manual_connect and not self.quick_connect and not self.is_device_connected_to_windows(self.TARGET_MAC):
                 print("Device not connected to Windows. Retrying...")
                 time.sleep(2.5)  # Check every second
                 continue
@@ -191,9 +195,11 @@ class EarX:
                         self.bt_socket.close()
                     except OSError:
                         pass
-                    self.bt_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
-                time.sleep(1.5)  # Retry every second
+                self.bt_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
+                time.sleep(2.5)  # Retry every second
                 self.connected = False
+            if self.manual_connect:
+                break
                 
         self.connecting = False
 
@@ -1039,7 +1045,7 @@ def main():
     threading.Thread(target=start_eel).start()
     
     overlay = TransparentOverlay()
-    glassX = EarX(overlay)
+    glassX:EarX = EarX(overlay)
 
     eel.expose(glassX.setANC)
     eel.expose(glassX.setEQ)
@@ -1099,21 +1105,85 @@ def main():
     # Create menu with Show and Exit options
     menu = QMenu()
     menu.setWindowFlags(menu.windowFlags() | Qt.Popup)
+    
+    # Connection Mode submenu
+    connection_menu = menu.addMenu("Connection Mode")
+    
+    # Mode selection group
+    mode_group = QActionGroup(connection_menu)
+    mode_group.setExclusive(True)
+    
+    # Add mode options
+    instant_mode = connection_menu.addAction("Instant")
+    instant_mode.setCheckable(True)
+    instant_mode.setChecked(True)
+    mode_group.addAction(instant_mode)
+    
+    restricted_mode = connection_menu.addAction("Restricted")
+    restricted_mode.setCheckable(True)
+    mode_group.addAction(restricted_mode)
+    
+    manual_mode = connection_menu.addAction("Manual")
+    manual_mode.setCheckable(True)
+    mode_group.addAction(manual_mode)
+    
+    connection_menu.addSeparator()
+    
+    def show_info_dialog():
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setWindowTitle("Connection Modes")
+        msg.setText("Connection Mode Information")
+        msg.setInformativeText(
+            "Instant: Forces immediate connection. Other paired devices won't be able to connect.\n\n" +
+            "Restricted: Allows other devices to connect but uses more CPU.\n\n" +
+            "Manual: You control when to connect via the menu."
+        )
+        msg.setWindowIcon(QIcon("web/cmf.png"))  # Assuming icon is in assets folder
+        msg.setStyleSheet("QMessageBox { background-color: #ffffff; }")
+        msg.exec_()
 
+    # Info button
+    info_action = connection_menu.addAction("ℹ️ Mode Info")
+    info_action.triggered.connect(show_info_dialog)
+    
+    # Manual connect button (hidden by default)
+    connect_action = menu.addAction("Connect")
+    connect_action.setVisible(False)
+    connect_action.triggered.connect(lambda: threading.Thread(target=glassX.auto_connect).start())  # You'll need to implement this function
+    
+    # Mode change handler
+    def on_mode_change():
+        connect_action.setVisible(manual_mode.isChecked())
+        if manual_mode.isChecked():
+            glassX.manual_connect = True
+            glassX.quick_connect = True
+        elif restricted_mode.isChecked():
+            glassX.quick_connect = False
+            glassX.manual_connect = False
+            threading.Thread(target=glassX.auto_connect).start()
+        elif instant_mode.isChecked():
+            glassX.manual_connect = False
+            glassX.quick_connect = True
+            threading.Thread(target=glassX.auto_connect).start()
 
+    
+    instant_mode.triggered.connect(on_mode_change)
+    restricted_mode.triggered.connect(on_mode_change)
+    manual_mode.triggered.connect(on_mode_change)
+    
     show_action = menu.addAction("Show")
     show_action.triggered.connect(show_eel_window)
     
-    menu.addSeparator()  # Add a separator line between actions
+    menu.addSeparator()
     quit_action = menu.addAction("Exit")
     quit_action.triggered.connect(cleanup)
-
-    def hideMenuOnClick():
-        menu.hide()
-
-    menu.aboutToHide.connect(hideMenuOnClick)
-
-
+    
+    #def hideMenuOnClick():
+        #menu.hide()
+    
+    #menu.aboutToHide.connect(hideMenuOnClick)
+    
     tray.setContextMenu(menu)
 
     

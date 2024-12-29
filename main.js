@@ -19,16 +19,13 @@ app.on('ready', () => {
     mainWindow.loadURL('http://localhost:8000/main.html');
     windowVisible = false;
     // Listen for toggle events from Python
-    ipcMain.on('toggle-visibility', () => {
-        if (!mainWindow) return;
-        
+    ipcMain.on('toggle-visibility', () => {        
         try {
             if (windowVisible) {
                 mainWindow.hide();
                 windowVisible = false;
             } else {
                 mainWindow.show();
-                mainWindow.focus();
                 windowVisible = true;
             }
         } catch (error) {
@@ -50,6 +47,7 @@ app.on('ready', () => {
     mainWindow.on('close', (event) => {
         event.preventDefault();  // Prevent the default close behavior
         mainWindow.hide();  // Hide the window
+        windowVisible = false;
     });
 
     mainWindow.setTitle("GlassControl");

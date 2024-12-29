@@ -787,6 +787,10 @@ class TransparentOverlay(QMainWindow):
         # Add to main layout and center
         main_layout.addLayout(earbud_layout)
         main_layout.setAlignment(Qt.AlignCenter)  # Center vertically
+
+        # if any of the label are clicked, emit signal to show overlay
+        self.left_label.mousePressEvent = show_eel_window
+        self.right_label.mousePressEvent = show_eel_window
         
         
     def setup_animations(self):
@@ -955,7 +959,7 @@ def start_eel():
     except Exception as e:
         print(f"Error starting Eel: {e}")
 
-def show_eel_window():
+def show_eel_window(_=None):
     print("Showing Eel window")
     try:
         eel.toggleVisibility()

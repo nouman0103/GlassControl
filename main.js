@@ -5,7 +5,7 @@ let mainWindow;
 app.on('ready', () => {
     mainWindow = new BrowserWindow({
         width: 800,
-        height: 750,
+        height: 770,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),  // Use preload script
           contextIsolation: true,  // Enable contextIsolation for security

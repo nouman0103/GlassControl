@@ -5,6 +5,7 @@ Credit for API logic goes to https://github.com/radiance-project/ear-web
 # Standard library imports
 import os
 import signal
+import subprocess
 import sys
 import threading
 import time
@@ -34,8 +35,7 @@ from PyQt5.QtGui import (
     QFontMetrics,
     QIcon,
     QPainter,
-    QPixmap,
-    QRegion
+    QPixmap
 )
 from PyQt5.QtWidgets import (
     QApplication,
@@ -83,6 +83,11 @@ class EarX:
         self.connected = False
         self.connecting = False
         self.terminate = False
+        # quick connect:
+        # if true, connect to earbuds directly without checking Windows connection
+        # if false, connect to earbuds only when Windows is connected (Uses more resources)
+        self.quick_connect = True
+
         self.readerThread = threading.Thread(target=self.reader)
         self.readerThread.start()
         self.pingerThread = threading.Thread(target=self.pinger)
@@ -95,6 +100,9 @@ class EarX:
         self.first_in_ear = False
         self.pinging_eel = False
 
+    
+        
+
     def crc16(self, buffer):
         """Calculate CRC16 for the command packet"""
         crc = 0xFFFF
@@ -105,29 +113,88 @@ class EarX:
         return crc
     
 
+    def is_device_connected_to_windows(self, target_mac):
+        """
+        Check if the device is actively connected (not just paired) to Windows Bluetooth
+
+        Args:
+            target_mac (str): MAC address of the target device in format "XX:XX:XX:XX:XX:XX"
+
+        Returns:
+            bool: True if device is actively connected, False otherwise
+        """
+        try:
+            # Format MAC address by removing colons and converting to uppercase
+            formatted_mac = target_mac.replace(':', '').upper()
+
+            # PowerShell command to check only actively connected Bluetooth devices
+            cmd = """
+            Get-PnpDevice | Where-Object {
+                $_.Class -eq 'Bluetooth' -and
+                $_.Status -eq 'OK' -and
+                $_.DeviceID -match '""" + formatted_mac + """'
+            } | ForEach-Object {
+                $connected = $false
+                $device = Get-CimInstance -ClassName Win32_PnPEntity -Filter "DeviceID='$($_.DeviceID)'"
+
+                # Check if device properties contain Bluetooth connection status
+                try {
+                    $props = Get-PnpDeviceProperty -InstanceId $_.InstanceId -KeyName '{83DA6326-97A6-4088-9453-A1923F573B29} 15'
+                    if ($props.Data -eq $true) {
+                        $connected = $true
+                    }
+                } catch {}
+
+                if ($connected) {
+                    Write-Output "CONNECTED"
+                }
+            }
+            """
+
+            output = subprocess.check_output(['powershell', '-Command', cmd],
+                                        text=True,
+                                        stderr=subprocess.STDOUT)
+            return 'CONNECTED' in output
+
+        except subprocess.CalledProcessError as e:
+            print(f"Error checking Windows connection: {e.output}")
+            return False
+        except Exception as e:
+            print(f"Error checking Windows connection: {e}")
+            return False
+    
+
     def auto_connect(self):
-        """Connect to the earbuds"""
+        """Connect to the earbuds only when Windows is connected"""
         if self.connecting or self.connected or self.terminate:
             return
-        print("Connecting to earbuds...")
+            
         self.connecting = True
+        
         while not self.terminate:
+            # Quick check for Windows connection
+            if not self.quick_connect and not self.is_device_connected_to_windows(self.TARGET_MAC):
+                print("Device not connected to Windows. Retrying...")
+                time.sleep(2.5)  # Check every second
+                continue
+            
+                
             try:
+                print("Connecting to earbuds...")
                 threading.Thread(target=self.eelPing).start()
                 self.bt_socket.connect((self.TARGET_MAC, self.TARGET_PORT))
                 self.on_connect()
                 break
             except OSError as e:
-                print(f"Connection failed. Retrying... {e}")
                 if "already connected socket" in str(e):
                     try:
                         self.bt_socket.close()
                     except OSError:
                         pass
                     self.bt_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
-
-                time.sleep(2.5)
+                time.sleep(1.5)  # Retry every second
                 self.connected = False
+                
         self.connecting = False
 
 

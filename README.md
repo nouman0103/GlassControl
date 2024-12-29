@@ -8,9 +8,20 @@ GlassControl is a Windows application that provides automatic connection and con
 - Equalizer settings
 - System tray integration
 - Elegant connection animations
+- Minimal interface
 
 ## Currently Supported Devices
 - CMF Buds Pro
+
+## Preview
+
+
+https://github.com/user-attachments/assets/caf7b451-ad6c-4d82-a661-51ea160ab356
+
+
+
+
+
 
 ## Requirements
 
@@ -23,6 +34,8 @@ GlassControl is a Windows application that provides automatic connection and con
   - python-dotenv
   - eel
   - psutil
+- [Electron 33.3.0](https://github.com/electron/electron/releases/download/v33.3.0/electron-v33.3.0-win32-x64.zip)
+  - Unzip to folder `electron-v33.3.0-win32-x64` and place it in the project directory
 
 ## Installation
 
@@ -32,6 +45,7 @@ GlassControl is a Windows application that provides automatic connection and con
 ```
 EARBUD_MAC_ADDRESS=XX:XX:XX:XX:XX:XX
 ```
+- To find your earbud's MAC address, open NothingX -> Settings -> Device Details -> Bluetooth Address
 
 ## Task Scheduler Setup (24/7 Operation)
 
@@ -40,13 +54,13 @@ To run GlassControl automatically on system startup:
 1. Open Task Scheduler (`taskschd.msc`)
 2. Create a new Basic Task:
    - Name: "GlassControl"
-   - Trigger: "At system startup"
+   - Trigger: "At user log on"
    - Action: Start a program
-   - Program/script: Path to your Python executable
+   - Program/script: Path to your Python executable (use pythonw.exe for background execution)
    - Add arguments: Path to main.py
    - Start in: Path to project directory
 
-(Note: After creation, go to Power settings. The task scheduler stops the application when on battery power.)
+(Note: After creation, go to Power settings to make appropriate changes. By default, the task scheduler stops the application when on battery power.)
 
 ## Credits
 

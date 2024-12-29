@@ -2,41 +2,60 @@
 Credit for API logic goes to https://github.com/radiance-project/ear-web
 """
 
-import bluetooth
-import numpy as np
+# Standard library imports
+import os
+import signal
+import sys
 import threading
 import time
-import sys
-from PyQt5.QtWidgets import QApplication, QButtonGroup, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QMainWindow, QLabel, QPushButton, QSizePolicy
-from PyQt5.QtCore import QParallelAnimationGroup, QRect, QRectF, QSequentialAnimationGroup, QSize, QTimer, Qt, QPropertyAnimation, QPoint
-from PyQt5.QtGui import QColor, QFont, QFontMetrics, QPainter, QPixmap, QRegion, QTransform
-from PyQt5.QtWidgets import QSystemTrayIcon, QMenu
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QWidget, QVBoxLayout
-from PyQt5.QtCore import QEasingCurve
-import signal
-from PyQt5.QtCore import pyqtProperty
 
-from PyQt5.QtWidgets import QLabel
-from PyQt5.QtGui import QPainter, QTransform
+# Third-party imports
+import bluetooth
 import eel
-from eel import expose
-from PyQt5.QtCore import pyqtSignal, QObject
-import subprocess
-import os
 from dotenv import load_dotenv
+import numpy as np
 import psutil
+from PyQt5.QtCore import (
+    QEasingCurve,
+    QObject,
+    QParallelAnimationGroup,
+    QPoint,
+    QPropertyAnimation,
+    QRect,
+    QSequentialAnimationGroup,
+    QSize,
+    Qt,
+    pyqtProperty,
+    pyqtSignal
+)
+from PyQt5.QtGui import (
+    QColor,
+    QFont,
+    QFontMetrics,
+    QIcon,
+    QPainter,
+    QPixmap,
+    QRegion
+)
+from PyQt5.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QSizePolicy,
+    QSystemTrayIcon,
+    QVBoxLayout,
+    QWidget
+)
 
+# Expose decorator from eel
+from eel import expose
 load_dotenv()
 
 # Add signal class
 class SignalEmitter(QObject):
     show_overlay = pyqtSignal()
-
-#electron_path = os.path.join(os.getcwd(), 'electron-v31.0.0-alpha.2-win32-x64/electron.exe')
-
-# Start the Electron app
-#electron_process = subprocess.Popen([electron_path, "."], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 # Function to toggle visibility
 def toggle_window(action):
@@ -74,7 +93,6 @@ class EarX:
         self.overlay = overlay
         self.first_animation_loaded = False
         self.first_in_ear = False
-        #self.readerThread.join()
 
     def crc16(self, buffer):
         """Calculate CRC16 for the command packet"""
@@ -128,8 +146,6 @@ class EarX:
             pass
         self.bt_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
         threading.Thread(target=self.auto_connect).start()
-        #hideOverlay = threading.Thread(target=self.overlay.hide)
-        #hideOverlay.start()
 
     def on_connect(self):
         """Handle connection"""
@@ -229,7 +245,6 @@ class EarX:
             eel.setCustomEQ(formatedArray)
         except Exception as e:
             print(f"Error sending custom EQ to Eel: {e}")
-        #setCustomEQ(formatedArray)
 
     def setCustomEQ_BT(self, level):
         byteArray = [
@@ -651,37 +666,6 @@ class TransparentOverlay(QMainWindow):
         self.signal_emitter.show_overlay.connect(self.show_animation)
         self.init_ui()
 
-        #screen = QApplication.primaryScreen()
-        #screen.geometryChanged.connect(self.apply_taskbar_mask)  # Update mask if screen geometry changes
-        
-        #self.apply_taskbar_mask()  # Initial mask application
-
-    def apply_taskbar_mask(self):
-        # Get the available screen geometry (excluding the taskbar)
-        screen = QApplication.primaryScreen()
-        available_geometry = screen.availableGeometry()
-        full_geometry = screen.geometry()
-
-        # Calculate taskbar dimensions
-        taskbar_rect = QRect(
-            full_geometry.left(),  # X position
-            available_geometry.bottom() + 1,  # Y position just below available area
-            full_geometry.width(),  # Full width of screen
-            full_geometry.height() - available_geometry.height()  # Taskbar height
-        )
-
-        # Create mask for the window
-        window_region = QRegion(0, 0, taskbar_rect.width(), taskbar_rect.height())
-        self.setMask(window_region)
-        
-        # Position the window over the taskbar
-        self.setGeometry(taskbar_rect)
-        self.raise_()
-
-    def moveEvent(self, event):
-        """Handle window movement to ensure the mask updates."""
-        #self.apply_taskbar_mask()
-        super().moveEvent(event)
 
     def set_battery_level(self, battery_status):
         # Update battery levels for each earbud
@@ -705,30 +689,18 @@ class TransparentOverlay(QMainWindow):
             # hide the label
             self.right_label.setVisible(False)
 
-    
-        
+
         # Update text labels
         self.left_label.setText(leftText)
         self.right_label.setText(rightText)
 
-
-    # def ensure_always_on_top(self):
-    #     """Periodically check and ensure the window stays above other application windows."""
-    #     self.timer = QTimer(self)
-    #     self.timer.timeout.connect(self.raise_to_top)
-    #     self.timer.start(1000)  # Check every second
 
     def raise_to_top(self):
         self.show()  # Ensure visibility
         self.raise_()  # Bring to front
         self.activateWindow()  # Activate to maintain focus
 
-    # def eventFilter(self, source, event):
-    #     if event.type() == event.WindowDeactivate:
-    #         self.raise_to_top()  # Re-raise if it loses focus
-    #     return super().eventFilter(source, event)
 
-        
         
     def init_ui(self):
         # Main layout
@@ -865,8 +837,6 @@ class TransparentOverlay(QMainWindow):
         self.wait_animation.setEndValue(self.max_scale)
 
 
-
-
         # Create additional animations for buds going down
         self.left_rotation_back = QPropertyAnimation(self.left_label, b"rotation")
         self.right_rotation_back = QPropertyAnimation(self.right_label, b"rotation")
@@ -914,9 +884,6 @@ class TransparentOverlay(QMainWindow):
         self.buds_animation_group.addAnimation(self.buds_group)
         self.buds_animation_group.addAnimation(self.wait_animation)
         self.buds_animation_group.addAnimation(self.buds_down_group)
-
-        # Sync buds going down animations with main fade out
-        #self.animation_down.finished.connect(self.buds_down_group.start)
 
 
     def show_animation(self):

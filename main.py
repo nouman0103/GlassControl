@@ -137,6 +137,8 @@ class EarX:
         self.connected = True
         self.get_battery()
         threading.Timer(1, self.getANC).start()
+        threading.Timer(2.2, self.getEQ).start()
+        threading.Timer(3.4, self.getCustomEQ).start()
 
     def parseANC(self, hexString):
         print("Parsing ANC status...")
@@ -192,6 +194,119 @@ class EarX:
 
         self.send(61455, byteArray)
 
+    def setEQ(self, level):
+        """
+        0 - Balanced
+        3 - More Bass
+        2 - More Treble
+        1 - Voice
+        5 - Custom
+        """
+        byteArray = [0x00, 0x00]
+        byteArray[0] = level
+        self.send(61456, byteArray)
+        if(level == 5):
+            self.getCustomEQ()
+
+    def getEQ(self):
+        self.send(49183, [])
+
+    def getCustomEQ(self):
+        self.send(49220, [])
+
+    def readCustomEQ(self, hexString):
+        print("readCustomEQ called")
+        level = []
+        for i in range(3):
+            array = []
+            for j in range(4):
+                array.append(hexString[14 + (i * 13) + j])
+            level.append(self.fromFormatFloatForEQ(array))
+        
+        formatedArray = [int(level[2]), int(level[0]), int(level[1])]
+        print(formatedArray)
+        try:
+            eel.setCustomEQ(formatedArray)
+        except Exception as e:
+            print(f"Error sending custom EQ to Eel: {e}")
+        #setCustomEQ(formatedArray)
+
+    def setCustomEQ_BT(self, level):
+        byteArray = [
+            0x03, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x75, 0x44, 0xc3, 0xf5,
+            0x28, 0x3f, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x5a, 0x45, 0x00, 0x00, 0x80, 0x3f, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0c, 0x43, 0xcd, 0xcc, 0x4c, 0x3f, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00
+        ]
+
+        # Find the highest value in the level array
+        highestValue = max(level)
+        highestValue /= -1
+
+        # Format and set the highest value in the byte array
+        array = self.formatFloatForEQ(highestValue, True)
+        for j in range(4):
+            byteArray[1 + j] = array[j]
+
+        # Format and set each level in the byte array
+        for i in range(3):
+            array = self.formatFloatForEQ(level[i], False)
+            for j in range(4):
+                byteArray[6 + (i * 13) + j] = array[j]
+
+        # Send the byte array with the custom command
+        self.send(61505, byteArray)
+
+        threading.Timer(1, self.getCustomEQ).start()
+
+
+    def formatFloatForEQ(self, f, total):
+        # Create a 4-byte array for the float
+        buffer = np.zeros(4, dtype=np.uint8)
+        view = np.array([f], dtype='>f4').view(np.uint8)
+        
+        # Copy the big-endian float bytes into the buffer
+        buffer[:] = view
+
+        # Check for the special case where the float is not zero and the first three bytes are zero
+        if f != 0.0 and buffer[0] == 0 and buffer[1] == 0 and buffer[2] == 0:
+            buffer[3] = (buffer[3] | 0x80) & 0xFF
+
+        # Reverse the array in place
+        buffer = buffer[::-1]
+
+        # Apply total condition
+        if total:
+            if f >= 0:
+                buffer = np.array([0x00, 0x00, 0x00, 0x80], dtype=np.uint8)
+
+        return buffer
+
+    def fromFormatFloatForEQ(self, array):
+        # Reverse the array
+        for i in range(len(array) // 2):
+            j = len(array) - i - 1
+            array[i], array[j] = array[j], array[i]
+
+        if array[0] == 0 and array[1] == 0 and array[2] == 0 and (array[3] & 0x80):
+            array[3] &= 0x7F
+            buffer = np.array(array, dtype=np.uint8).tobytes()
+            f = np.frombuffer(buffer, dtype='>f4')[0]
+            return -f
+        else:
+            buffer = np.array(array, dtype=np.uint8).tobytes()
+            f = np.frombuffer(buffer, dtype='>f4')[0]
+            return f
+
+
+
+    def readEQ(self, hexString):
+        print("readEQ called")
+        hexArray = [int(hexString[i:i+2], 16) for i in range(0, len(hexString), 2)]
+        eqMode = hexArray[8]
+        print("eqMode ", eqMode)
+        eel.setEQfromRead(eqMode)
+        #setEQfromRead(eqMode)
 
     def pinger(self):
         """Send ping command to the earbuds to keep the connection alive"""
@@ -236,6 +351,14 @@ class EarX:
 
             if command in [57347, 16414]:
                 self.parseANC(hexString)
+
+
+            if command == 16452:
+                self.readCustomEQ(data)
+
+
+            if command in [16415, 16464]:
+                self.readEQ(hexString)
             
         
     def get_battery(self):
@@ -832,41 +955,83 @@ def main():
     glassX = EarX(overlay)
 
     eel.expose(glassX.setANC)
+    eel.expose(glassX.setEQ)
+    eel.expose(glassX.setCustomEQ_BT)
 
     
     # Set up clean exit handler
     def cleanup():
         print("Shutting down...")
+        # First stop the main loop and disconnect
         glassX.connected = False
-        glassX.bt_socket.close()
         glassX.terminate = True
+        
+        try:
+            glassX.bt_socket.close()
+            print("Socket closed")
+        except:
+            pass
+
+        try:
+            eel.exitApp()
+            print("Eel exited")
+        except:
+            pass
+
+        # Remove tray icon before quitting
+        tray.hide()
+        
+        # Stop Qt event loop
         app.quit()
-        sys.exit()
+        print("App quit")
+
+        # Small delay to let Qt cleanup
+        time.sleep(0.5)
+        
+        # Force stop remaining threads
+        for thread in threading.enumerate():
+            if thread != threading.main_thread():
+                try:
+                    thread._stop()
+                except:
+                    pass
+        print("All threads stopped")
+
+        # Use only one exit call
+        os._exit(0)
         
     
     # Handle system signals
     signal.signal(signal.SIGINT, lambda s, f: cleanup())
-    
-    # Create system tray icon
+        # Create system tray icon
     tray = QSystemTrayIcon()
-    icon = QIcon("web/cmf.png")  # Add an icon file
+    icon = QIcon("web/cmf.png")
     tray.setIcon(icon)
     tray.setVisible(True)
-
     
-
-    print("UI started")
-    
-
-    # Add quit action to tray
+    # Create menu with Show and Exit options
     menu = QMenu()
+    menu.setWindowFlags(menu.windowFlags() | Qt.Popup)
+
+
+    show_action = menu.addAction("Show")
+    show_action.triggered.connect(show_eel_window)
+    
+    menu.addSeparator()  # Add a separator line between actions
     quit_action = menu.addAction("Exit")
     quit_action.triggered.connect(cleanup)
+
+    def hideMenuOnClick():
+        menu.hide()
+
+    menu.aboutToHide.connect(hideMenuOnClick)
+
+
     tray.setContextMenu(menu)
 
-    # on tray icon click, show the ANC control widget
-    tray.activated.connect(lambda reason: show_eel_window() if reason == QSystemTrayIcon.Trigger else None)
     
+    # Keep the existing click behavior
+    tray.activated.connect(lambda reason: show_eel_window() if reason == QSystemTrayIcon.Trigger else None)
     try:
         sys.exit(app.exec_())
     except KeyboardInterrupt:

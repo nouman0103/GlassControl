@@ -538,6 +538,7 @@
             });
         }
 
+
         sliders.forEach(id => {
             createDots(`custom-${id}Dots`);
             const slider = document.getElementById(`custom-${id}`);
@@ -548,7 +549,7 @@
             
             slider.addEventListener('input', (e) => {
                 const value = parseInt(e.target.value);
-                valueDisplay.textContent = `${value} dB`;
+                valueDisplay.textContent = `${value}`;
                 updateDots(`custom-${id}`, value);
                 
                 // Add subtle spring animation to value display
@@ -558,10 +559,23 @@
                 }, 150);
             });
 
+
+            slider.addEventListener('change', (e) => {
+                // Only trigger if change was from user interaction
+                if (e.isTrusted) {
+                    const value = parseInt(e.target.value);
+                    eel.setCustomEQ_BT([
+                        parseInt(document.getElementById('custom-treble').value),
+                        parseInt(document.getElementById('custom-mid').value),
+                        parseInt(document.getElementById('custom-bass').value),
+                    ]);
+                }
+            });
+
             // Double click to reset to 0
             slider.addEventListener('dblclick', () => {
                 slider.value = 0;
-                valueDisplay.textContent = '0 dB';
+                valueDisplay.textContent = '0';
                 updateDots(`custom-${id}`, 0);
                 
                 // Add reset animation
@@ -582,7 +596,7 @@
 
 
 
-        function setPreset(preset) {
+        function setPreset(preset, send_to_eel=true) {
             const buttons = document.querySelectorAll('.preset-button');
             buttons.forEach(button => {
                 button.classList.toggle('active', button.textContent.toLowerCase().includes(preset));
@@ -593,24 +607,61 @@
                 hideEQ();
                 //updateEQ(values);
             }
+            let level = 5;
             let values;
             switch (preset) {
                 case 'balanced':
+                    level = 0;
                     values = [0, 0, 0];
                     break;
                 case 'bass':
+                    level = 3;
                     values = [6, 0, -2];
                     break;
                 case 'treble':
+                    level = 2;
                     values = [-2, 0, 6];
                     break;
                 case 'voice':
+                    level = 1;
                     values = [-3, 3, -1];
                     break;
                 default:
-                    return;
+                    break;
             }
-            
+            if (send_to_eel) {
+                eel.setEQ(level);
+            }
+        }
+        eel.expose(setEQfromRead)
+        function setEQfromRead(level) {
+            switch (level) {
+                case 0:
+                    setPreset('balanced');
+                    break;
+                case 1:
+                    setPreset('voice');
+                    break;
+                case 2:
+                    setPreset('treble');
+                    break;
+                case 3:
+                    setPreset('bass');
+                    break;
+                default:
+                    setPreset('custom');
+                    break;
+            }
+        }
+
+        eel.expose(setCustomEQ);
+        function setCustomEQ(values) {
+            const sliders = ['bass', 'treble', 'mid'];
+            sliders.forEach((slider, index) => {
+                document.getElementById(`custom-${slider}`).value = values[index];
+                document.getElementById(`custom-${slider}Value`).textContent = `${values[index]}`;
+                updateDots(`custom-${slider}`, values[index]);
+            });
         }
 
         function setANCMode(mode) {
@@ -663,6 +714,12 @@
         function toggleVisibility(action) {
             // Call the exposed method to send the action to Electron's main process
             window.electron.toggleVisibility(action);
+        }
+
+        eel.expose(exitApp);
+        function exitApp() {
+            // Call the exposed method to send the action to Electron's main process
+            window.electron.exit();
         }
     </script>
 </body>

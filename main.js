@@ -27,6 +27,15 @@ app.on('ready', () => {
         }
     });
 
+    ipcMain.on("exit", () => {
+        app.quit();
+    });
+
+    ipcMain.on("minimize", () => {
+        mainWindow.minimize();
+    });
+    
+
     mainWindow.on('close', (event) => {
       event.preventDefault();  // Prevent the default close behavior
       mainWindow.hide();  // Hide the window

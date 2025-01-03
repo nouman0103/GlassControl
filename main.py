@@ -99,6 +99,7 @@ class EarX:
 
         threading.Thread(target=self.pinger).start()
         threading.Thread(target=self.reader).start()
+        threading.Thread(target=self.eelPinger).start()
 
     
     def trigger_connect(self):
@@ -182,7 +183,6 @@ class EarX:
                 
             try:
                 print("Connecting to earbuds...")
-                threading.Thread(target=self.eelPing).start()
                 self.bt_socket.connect((self.TARGET_MAC, self.TARGET_PORT))
                 self.on_connect()
                 break
@@ -403,10 +403,14 @@ class EarX:
             if self.connected:
                 try:
                     self.get_battery()
-                    threading.Thread(target=self.eelPing).start()
                 except OSError:
                     self.on_disconnect()
             time.sleep(60)
+
+    def eelPinger(self):
+        while not self.terminate:
+            self.eelPing()
+            time.sleep(30)
 
     def eelPing(self):
         if self.pinging_eel:
@@ -1038,6 +1042,102 @@ def show_eel_window(_=None):
     except Exception as e:
         print(f"Error showing window: {e}")
 
+
+class TrayManager:
+    def __init__(self, mode, glassX, show_eel_window, cleanup):
+        self.mode = mode
+        self.glassX = glassX
+        self.show_eel_window = show_eel_window
+        self.cleanup = cleanup
+
+        self.tray = QSystemTrayIcon()
+        self.icon = QIcon("web/cmf.png")
+        self.tray.setIcon(self.icon)
+        self.tray.setVisible(True)
+    
+        self.menu = QMenu()
+        self.menu.setWindowFlags(self.menu.windowFlags() | Qt.Popup)
+        
+        self.connection_menu = self.menu.addMenu("Connection Mode")
+        
+        self.mode_group = QActionGroup(self.connection_menu)
+        self.mode_group.setExclusive(True)
+        
+        self.instant_mode = self.connection_menu.addAction("Instant")
+        self.instant_mode.setCheckable(True)
+        self.instant_mode.setChecked(True if mode == 2 else False)
+        self.mode_group.addAction(self.instant_mode)
+        
+        self.restricted_mode = self.connection_menu.addAction("Restricted")
+        self.restricted_mode.setCheckable(True)
+        self.restricted_mode.setChecked(True if mode == 1 else False)
+        self.mode_group.addAction(self.restricted_mode)
+        
+        self.manual_mode = self.connection_menu.addAction("Manual")
+        self.manual_mode.setCheckable(True)
+        self.manual_mode.setChecked(True if mode == 0 else False)
+        self.mode_group.addAction(self.manual_mode)
+        
+        self.connection_menu.addSeparator()
+        
+        def show_info_dialog():
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Information)
+            msg.setWindowTitle("Connection Modes")
+            msg.setText("Connection Mode Information")
+            msg.setInformativeText(
+                "Instant: Forces immediate connection. Other paired devices won't be able to connect.\n\n"
+                "Restricted: Allows other devices to connect but uses more CPU.\n\n"
+                "Manual: You control when to connect via the menu."
+            )
+            msg.setWindowIcon(QIcon("web/cmf.png"))
+            msg.setStyleSheet("QMessageBox { background-color: #ffffff; }")
+            msg.exec_()
+
+        self.info_action = self.connection_menu.addAction("ℹ️ Mode Info")
+        self.info_action.triggered.connect(show_info_dialog)
+        
+        self.connect_action = self.menu.addAction("Connect")
+        self.connect_action.setVisible(True if mode == 0 else False)
+        self.connect_action.triggered.connect(lambda: threading.Thread(target=self.glassX.auto_connect).start())
+        
+        def on_mode_change():
+            self.connect_action.setVisible(self.manual_mode.isChecked())
+            self.mode = 0
+            if self.manual_mode.isChecked():
+                self.glassX.manual_connect = True
+                self.glassX.quick_connect = True
+            elif self.restricted_mode.isChecked():
+                self.glassX.quick_connect = False
+                self.glassX.manual_connect = False
+                threading.Thread(target=self.glassX.auto_connect).start()
+                self.mode = 1
+            elif self.instant_mode.isChecked():
+                self.glassX.manual_connect = False
+                self.glassX.quick_connect = True
+                threading.Thread(target=self.glassX.auto_connect).start()
+                self.mode = 2
+
+            try:
+                with open("mode.pickle", "wb") as f:
+                    pickle.dump(self.mode, f)
+            except Exception as e:
+                print(f"Error saving mode: {e}")
+        
+        self.instant_mode.triggered.connect(on_mode_change)
+        self.restricted_mode.triggered.connect(on_mode_change)
+        self.manual_mode.triggered.connect(on_mode_change)
+        
+        self.show_action = self.menu.addAction("Show")
+        self.show_action.triggered.connect(self.show_eel_window)
+        
+        self.menu.addSeparator()
+        self.quit_action = self.menu.addAction("Exit")
+        self.quit_action.triggered.connect(self.cleanup)
+        
+        self.tray.setContextMenu(self.menu)
+        self.tray.activated.connect(lambda reason: self.show_eel_window() if reason == QSystemTrayIcon.Trigger else None)
+
 def main():
     app = QApplication(sys.argv)
     threading.Thread(target=start_eel).start()
@@ -1114,116 +1214,14 @@ def main():
     
     # Handle system signals
     signal.signal(signal.SIGINT, lambda s, f: cleanup())
-        # Create system tray icon
-    tray = QSystemTrayIcon()
-    icon = QIcon("web/cmf.png")
-    tray.setIcon(icon)
-    tray.setVisible(True)
     
-    # Create menu with Show and Exit options
-    menu = QMenu()
-    menu.setWindowFlags(menu.windowFlags() | Qt.Popup)
-    
-    # Connection Mode submenu
-    connection_menu = menu.addMenu("Connection Mode")
-    
-    # Mode selection group
-    mode_group = QActionGroup(connection_menu)
-    mode_group.setExclusive(True)
-    
-    # Add mode options
-    instant_mode = connection_menu.addAction("Instant")
-    instant_mode.setCheckable(True)
-    instant_mode.setChecked(True if mode == 2 else False)
-    mode_group.addAction(instant_mode)
-    
-    restricted_mode = connection_menu.addAction("Restricted")
-    restricted_mode.setCheckable(True)
-    restricted_mode.setChecked(True if mode == 1 else False)
-    mode_group.addAction(restricted_mode)
-    
-    manual_mode = connection_menu.addAction("Manual")
-    manual_mode.setCheckable(True)
-    manual_mode.setChecked(True if mode == 0 else False)
-    mode_group.addAction(manual_mode)
-    
-    connection_menu.addSeparator()
-    
-    def show_info_dialog():
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Information)
-        msg.setWindowTitle("Connection Modes")
-        msg.setText("Connection Mode Information")
-        msg.setInformativeText(
-            "Instant: Forces immediate connection. Other paired devices won't be able to connect.\n\n" +
-            "Restricted: Allows other devices to connect but uses more CPU.\n\n" +
-            "Manual: You control when to connect via the menu."
-        )
-        msg.setWindowIcon(QIcon("web/cmf.png"))  # Assuming icon is in assets folder
-        msg.setStyleSheet("QMessageBox { background-color: #ffffff; }")
-        msg.exec_()
+    tray = TrayManager(mode, glassX, show_eel_window, cleanup)
 
-    # Info button
-    info_action = connection_menu.addAction("ℹ️ Mode Info")
-    info_action.triggered.connect(show_info_dialog)
-    
-    # Manual connect button (hidden by default)
-    connect_action = menu.addAction("Connect")
-    connect_action.setVisible(True if mode == 0 else False)
-    connect_action.triggered.connect(lambda: threading.Thread(target=glassX.auto_connect).start())  # You'll need to implement this function
-    
-    # Mode change handler
-    def on_mode_change():
-        connect_action.setVisible(manual_mode.isChecked())
-        mode = 0
-        if manual_mode.isChecked():
-            glassX.manual_connect = True
-            glassX.quick_connect = True
-        elif restricted_mode.isChecked():
-            glassX.quick_connect = False
-            glassX.manual_connect = False
-            threading.Thread(target=glassX.auto_connect).start()
-            mode = 1
-        elif instant_mode.isChecked():
-            glassX.manual_connect = False
-            glassX.quick_connect = True
-            threading.Thread(target=glassX.auto_connect).start()
-            mode = 2
-
-        # save this mode for next time, pickle
-        try:
-            with open("mode.pickle", "wb") as f:
-                pickle.dump(mode, f)
-        except Exception as e:
-            print(f"Error saving mode: {e}")
-
-
-    
-    instant_mode.triggered.connect(on_mode_change)
-    restricted_mode.triggered.connect(on_mode_change)
-    manual_mode.triggered.connect(on_mode_change)
-    
-    show_action = menu.addAction("Show")
-    show_action.triggered.connect(show_eel_window)
-    
-    menu.addSeparator()
-    quit_action = menu.addAction("Exit")
-    quit_action.triggered.connect(cleanup)
-    
-    #def hideMenuOnClick():
-        #menu.hide()
-    
-    #menu.aboutToHide.connect(hideMenuOnClick)
-    
-    tray.setContextMenu(menu)
-
-    
-    # Keep the existing click behavior
-    tray.activated.connect(lambda reason: show_eel_window() if reason == QSystemTrayIcon.Trigger else None)
     try:
         sys.exit(app.exec_())
     except KeyboardInterrupt:
         cleanup()
+
             
 if __name__ == '__main__':
     main()

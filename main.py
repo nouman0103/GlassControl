@@ -56,6 +56,37 @@ from PyQt5.QtWidgets import (
 from eel import expose
 load_dotenv()
 
+import socket, atexit
+
+class SingleInstance:
+    """
+    Windows-compatible class to ensure only one instance of a script runs at a time.
+    Uses TCP socket binding on localhost.
+    """
+    def __init__(self, port=12345):
+        self.port = port
+        self.sock = None
+        
+        # Register cleanup
+        atexit.register(self.cleanup)
+        
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.bind(('localhost', self.port))
+            self.sock.listen(1)
+            
+        except socket.error:
+            print("Another instance is already running.")
+            sys.exit(1)
+    
+    def cleanup(self):
+        """Clean up the socket on program exit."""
+        try:
+            if self.sock:
+                self.sock.close()
+        except Exception:
+            pass
+
 # Add signal class
 class SignalEmitter(QObject):
     show_overlay = pyqtSignal()
@@ -79,7 +110,6 @@ class EarX:
         self.TARGET_MAC = os.getenv("EARBUD_MAC_ADDRESS")
         if not self.TARGET_MAC:
             raise ValueError("EARBUD_MAC_ADDRESS environment variable is not set. Please check your .env file.")
-        print("Mac", self.TARGET_MAC)
         self.TARGET_PORT = 15
         self.bt_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
         self.operation_id = 0
@@ -1139,6 +1169,8 @@ class TrayManager:
         self.tray.activated.connect(lambda reason: self.show_eel_window() if reason == QSystemTrayIcon.Trigger else None)
 
 def main():
+    single_instance = SingleInstance(port=13425)
+
     app = QApplication(sys.argv)
     threading.Thread(target=start_eel).start()
     

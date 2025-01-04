@@ -815,6 +815,10 @@ class TransparentOverlay(QMainWindow):
         self.init_ui()
 
 
+    def set_glass_x(self, x):
+        self.glass_x:EarX = x
+
+
     def set_battery_level(self, battery_status):
         # Update battery levels for each earbud
         for key, value in battery_status.items():
@@ -894,8 +898,8 @@ class TransparentOverlay(QMainWindow):
         main_layout.setAlignment(Qt.AlignCenter)  # Center vertically
 
         # if any of the label are clicked, emit signal to show overlay
-        self.left_label.mousePressEvent = show_eel_window
-        self.right_label.mousePressEvent = show_eel_window
+        self.left_label.mousePressEvent = lambda _:show_eel_window(self.glass_x)
+        self.right_label.mousePressEvent = lambda _:show_eel_window(self.glass_x)
         
         
     def setup_animations(self):
@@ -1060,11 +1064,13 @@ def start_eel():
         print("Starting Eel")
         eel.init("web")
         eel.browsers.set_path('electron', r'.\electron-v33.3.0-win32-x64\electron.exe')
-        threading.Thread(target = lambda :eel.start("main.html", mode="electron")).start()
+        eel.start("main.html", mode="electron")
+        #threading.Thread(target = lambda :eel.start("main.html", mode="electron")).start()
     except Exception as e:
         print(f"Error starting Eel: {e}")
 
-def show_eel_window(_=None):
+def show_eel_window(glassX:EarX):
+    threading.Thread(target = lambda :glassX.eelPing()).start()
     print("Showing Eel window")
     try:
         eel.toggleVisibility()
@@ -1159,14 +1165,14 @@ class TrayManager:
         self.manual_mode.triggered.connect(on_mode_change)
         
         self.show_action = self.menu.addAction("Show")
-        self.show_action.triggered.connect(self.show_eel_window)
+        self.show_action.triggered.connect(lambda: self.show_eel_window(glassX))
         
         self.menu.addSeparator()
         self.quit_action = self.menu.addAction("Exit")
         self.quit_action.triggered.connect(self.cleanup)
         
         self.tray.setContextMenu(self.menu)
-        self.tray.activated.connect(lambda reason: self.show_eel_window() if reason == QSystemTrayIcon.Trigger else None)
+        self.tray.activated.connect(lambda reason: self.show_eel_window(glassX) if reason == QSystemTrayIcon.Trigger else None)
 
 def main():
     single_instance = SingleInstance(port=13425)
@@ -1176,6 +1182,7 @@ def main():
     
     overlay = TransparentOverlay()
     glassX:EarX = EarX(overlay)
+    overlay.set_glass_x(glassX)
 
     # load the mode from pickle
     mode = None

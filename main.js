@@ -9,6 +9,10 @@ if (!gotTheLock) {
     // If we don't get the lock, quit immediately
     app.quit();
 } else {
+    app.on('second-instance', () => {
+        // create an error dialog
+        dialog.showErrorBox('Error', 'Another instance of the app is already running');
+    });
 
     app.on('ready', () => {
         mainWindow = new BrowserWindow({
@@ -60,12 +64,10 @@ if (!gotTheLock) {
         });
 
         mainWindow.setTitle("GlassControl");
-        windowDestroyed = false;
         // Power monitor events
         powerMonitor.on('suspend', () => {
             if (mainWindow) {
                 mainWindow.destroy();
-                windowDestroyed = true;
             }
         });
 
@@ -76,6 +78,28 @@ if (!gotTheLock) {
             app.quit();
         }
     });
+
+    setInterval(() => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+      
+        fetch("http://localhost:8000", { signal: controller.signal })
+          .then(res => {
+            clearTimeout(timeoutId);
+            // 404 means eel is still available
+          })
+          .catch(() => {
+            // Timeout or network error => eel is unavailable
+            if (mainWindow) {
+              mainWindow.close();
+            }
+          });
+      }, 3000);
+      
+    
+
+    
+    
 
 }
 

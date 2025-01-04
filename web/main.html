@@ -200,7 +200,7 @@
 
         .equalizer-section {
             transform: scaleY(0);
-            overflow: hidden;
+            overflow: visible;
             max-height: 0;
             opacity: 0;
             transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
@@ -311,7 +311,7 @@
             margin-top: -8px;
             transform: scale(1);
             transition: transform 0.2s ease, left 0.2s ease;
-
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.15);
         }
 
         input[type="range"]::-webkit-slider-thumb:hover {

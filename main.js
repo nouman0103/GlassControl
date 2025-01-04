@@ -9,11 +9,6 @@ if (!gotTheLock) {
     // If we don't get the lock, quit immediately
     app.quit();
 } else {
-    app.on('second-instance', () => {
-        // create an error dialog
-        dialog.showErrorBox('Error', 'Another instance of the app is already running');
-    });
-
     app.on('ready', () => {
         mainWindow = new BrowserWindow({
             width: 800,

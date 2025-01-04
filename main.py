@@ -1064,8 +1064,7 @@ def start_eel():
         print("Starting Eel")
         eel.init("web")
         eel.browsers.set_path('electron', r'.\electron-v33.3.0-win32-x64\electron.exe')
-        eel.start("main.html", mode="electron")
-        #threading.Thread(target = lambda :eel.start("main.html", mode="electron")).start()
+        threading.Thread(target = lambda :eel.start("main.html", mode="electron")).start()
     except Exception as e:
         print(f"Error starting Eel: {e}")
 

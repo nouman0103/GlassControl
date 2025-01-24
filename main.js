@@ -108,6 +108,7 @@ if (!gotTheLock) {
           .catch(() => {
             // Timeout or network error => eel is unavailable
             if (mainWindow) {
+                console.log('No response from eel');
                 destroyWindow();
             }
           });

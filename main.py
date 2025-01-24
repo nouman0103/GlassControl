@@ -1242,8 +1242,6 @@ def main():
         except:
             pass
 
-        # Remove tray icon before quitting
-        tray.hide()
         
         # Stop Qt event loop
         app.quit()

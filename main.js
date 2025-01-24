@@ -23,7 +23,7 @@ if (!gotTheLock) {
         });
         mainWindow.setMenuBarVisibility(false)
         //mainWindow.loadFile('web/main.html'); // Adjust path if necessary
-        mainWindow.loadURL('http://localhost:8000/main.html');
+        mainWindow.loadURL('http://localhost:7999/main.html');
         windowVisible = false;
         // Listen for toggle events from Python
         ipcMain.on('toggle-visibility', () => {        
@@ -33,7 +33,10 @@ if (!gotTheLock) {
                     windowVisible = false;
                 } else {
                     mainWindow.show();
+                    mainWindow.setAlwaysOnTop(true); // Force window to top
                     mainWindow.focus();
+                    mainWindow.moveTop(); // Move to front of z-order
+                    mainWindow.setAlwaysOnTop(false); // Reset always on top
                     windowVisible = true;
                 }
             } catch (error) {
@@ -74,28 +77,30 @@ if (!gotTheLock) {
         }
     });
 
-    setInterval(() => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
-      
-        fetch("http://localhost:8000", { signal: controller.signal })
-          .then(res => {
-            clearTimeout(timeoutId);
-            // 404 means eel is still available
-          })
-          .catch(() => {
-            // Timeout or network error => eel is unavailable
-            if (mainWindow) {
-              mainWindow.close();
+    setInterval(async () => {
+        try {
+            const response = await Promise.race([
+                mainWindow.webContents.executeJavaScript('electronPing()'),
+                new Promise((_, reject) => setTimeout(() => reject('timeout'), 2000))
+            ]);
+            
+            if (!response || response !== 'pong') {
+                console.log('No response from renderer');
+                destroyWindow();
             }
-          });
-      }, 3000);
-      
-    
+        } catch (error) {
+            console.error('Error pinging renderer:', error);
+            destroyWindow();
+        }
+    }, 3000);
+}
 
-    
-    
-
+function destroyWindow() {
+    if (mainWindow) {
+        mainWindow.destroy(); // Force close the window
+        mainWindow = null;
+        app.quit(); // Quit the application completely
+    }
 }
 
 

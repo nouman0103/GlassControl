@@ -27,11 +27,13 @@ from PyQt5.QtCore import (
     QSequentialAnimationGroup,
     QSize,
     Qt,
+    QTimer,
     pyqtProperty,
     pyqtSignal
 )
 from PyQt5.QtGui import (
     QColor,
+    QCursor,
     QFont,
     QFontMetrics,
     QIcon,
@@ -1064,7 +1066,7 @@ def start_eel():
         print("Starting Eel")
         eel.init("web")
         eel.browsers.set_path('electron', r'.\electron-v33.3.0-win32-x64\electron.exe')
-        threading.Thread(target = lambda :eel.start("main.html", mode="electron")).start()
+        threading.Thread(target = lambda :eel.start("main.html", mode="electron", port=7999)).start()
     except Exception as e:
         print(f"Error starting Eel: {e}")
 
@@ -1091,9 +1093,10 @@ class TrayManager:
         self.tray.setVisible(True)
     
         self.menu = QMenu()
-        self.menu.setWindowFlags(self.menu.windowFlags() | Qt.Popup)
+        self.menu.setWindowFlags(self.menu.windowFlags() | Qt.Popup | Qt.NoDropShadowWindowHint)
         
-        self.connection_menu = self.menu.addMenu("Connection Mode")
+        self.connection_menu = QMenu("Connection Mode", self.menu)
+        self.menu.addMenu(self.connection_menu)
         
         self.mode_group = QActionGroup(self.connection_menu)
         self.mode_group.setExclusive(True)
@@ -1171,7 +1174,19 @@ class TrayManager:
         self.quit_action.triggered.connect(self.cleanup)
         
         self.tray.setContextMenu(self.menu)
-        self.tray.activated.connect(lambda reason: self.show_eel_window(glassX) if reason == QSystemTrayIcon.Trigger else None)
+        self.tray.activated.connect(self.on_tray_activated)
+
+    def on_tray_activated(self, reason):
+        if reason == QSystemTrayIcon.Context:
+            # Small delay to ensure menu is ready
+            QTimer.singleShot(50, lambda: self.menu.popup(QCursor.pos()))
+        elif reason == QSystemTrayIcon.Trigger:
+            self.show_eel_window(self.glassX)
+
+    def __del__(self):
+        # Ensure menu is properly destroyed
+        if hasattr(self, 'menu'):
+            self.menu.deleteLater()
 
 def main():
     single_instance = SingleInstance(port=13425)

@@ -44,6 +44,8 @@ if (!gotTheLock) {
             }
         });
 
+        
+
         ipcMain.on("exit", () => {
             app.quit();
         });
@@ -93,6 +95,23 @@ if (!gotTheLock) {
             destroyWindow();
         }
     }, 3000);
+
+    setInterval(() => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+      
+        fetch("http://localhost:7999", { signal: controller.signal })
+          .then(res => {
+            clearTimeout(timeoutId);
+            // 404 means eel is still available
+          })
+          .catch(() => {
+            // Timeout or network error => eel is unavailable
+            if (mainWindow) {
+                destroyWindow();
+            }
+          });
+      }, 3000);
 }
 
 function destroyWindow() {

@@ -62,6 +62,10 @@ To run GlassControl automatically on system startup:
 
 (Note: After creation, go to Power settings to make appropriate changes. By default, the task scheduler stops the application when on battery power.)
 
+## Known Issues
+1. If instant connect mode is enabled, other devices cannot connect with earbuds.
+2. Under high cpu usage, the electron interface may crash.
+
 ## Credits
 
 This application uses code inspired by the [ear-web](https://github.com/radiance-project/ear-web) project. This project would not have been possible without their pioneering work in reverse engineering the earbud protocol.
